@@ -38,6 +38,7 @@ function coupeurs(){
     <option>Machine 3</option>
   </select>
   <input id=pq type=number min=1 value="1" placeholder="Nombre de productions">
+  <input id=pt type=number min="0" value="0" placeholder="Tarif par production">
   <button onclick=addProductionCoupeur()>✅ Enregistrer la production</button>
   </div>
 
@@ -51,8 +52,8 @@ function coupeurs(){
   </table></div></div>
 
   <div class=card><h3>📋 Historique de production</h3><div style="overflow:auto"><table>
-  <tr><th>Date</th><th>Coupeur</th><th>Machine</th><th>Productions</th></tr>
-  ${prod.map(x=>`<tr><td>${new Date(x.date).toLocaleString("fr-FR")}</td><td>${esc(x.coupeur)}</td><td>${esc(x.machine||"—")}</td><td>${x.qte}</td></tr>`).join("")}
+  <tr><th>Date</th><th>Coupeur</th><th>Machine</th><th>Productions</th><th>Tarif</th><th>Total</th></tr>
+  ${prod.map(x=>`<tr><td>${new Date(x.date).toLocaleString("fr-FR")}</td><td>${esc(x.coupeur)}</td><td>${esc(x.machine||"—")}</td><td>${x.qte}</td><td>${Number(x.tarif||0).toLocaleString("fr-FR")}</td><td><b>${(Number(x.qte||0)*Number(x.tarif||0)).toLocaleString("fr-FR")}</b></td></tr>`).join("")}
   </table></div></div>`;
 }
 
@@ -67,12 +68,13 @@ function addCoupeur(){
 function addProductionCoupeur(){
   if(!pn.value){alert("Choisis un coupeur");return}
   if(!pm.value){alert("Choisis une machine");return}
-  let q=Math.max(1,+pq.value||1),d=get("productions_coupeurs");
+  let q=Math.max(1,+pq.value||1), tarif=Math.max(0,+pt.value||0),d=get("productions_coupeurs");
   d.unshift({
     date:new Date().toISOString(),
     coupeur:pn.value,
     machine:pm.value,
-    qte:q
+    qte:q,
+    tarif:tarif
   });
   put("productions_coupeurs",d.slice(0,500));
   coupeurs();
