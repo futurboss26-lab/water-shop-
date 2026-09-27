@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Water Shop</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+body{font-family:Arial,sans-serif;margin:0;background:#f4f7fb;color:#172033}
+header{background:#087ea4;color:#fff;padding:18px}main{padding:18px;max-width:700px;margin:auto}
+.card{background:#fff;border-radius:14px;padding:18px;margin:12px 0;box-shadow:0 2px 10px #0001}
+button{width:100%;padding:14px;margin:6px 0;border:0;border-radius:10px;background:#087ea4;color:#fff;font-size:16px}
+input,select{width:100%;box-sizing:border-box;padding:13px;margin:6px 0 12px;border:1px solid #ccd5df;border-radius:9px}
+.small{color:#667085;font-size:14px}.err{color:#b42318}.ok{color:#067647}
+</style>
+</head>
+<body>
+<header><b>💧 Water Shop</b><div>Gestion de votre magasin</div></header>
+<main id="app"></main>
+<script>
+const SUPABASE_URL="https://bzoewgyyjcwnqnjrbwgj.supabase.co";
+const SUPABASE_KEY="sb_publishable_yvJLY4g8HuehHHRchbB1lA_kKypIpNo";
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const app=document.getElementById("app");
+
+function esc(x){return String(x??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));}
+
+async function start(){
+ const {data:{session}}=await sb.auth.getSession();
+ session ? home() : login();
+}
+function login(){
+ app.innerHTML=`<div class="card"><h2>Connexion</h2>
+ <label>E-mail</label><input id="emailInput" type="email" placeholder="votre@email.com">
+ <label>Mot de passe</label><input id="passwordInput" type="password" placeholder="Mot de passe">
+ <button id="loginBtn">Se connecter</button><p id="loginMsg" class="err"></p></div>`;
+ document.getElementById("loginBtn").onclick=async()=>{
+  const email=document.getElementById("emailInput").value.trim();
+  const password=document.getElementById("passwordInput").value;
+  const msg=document.getElementById("loginMsg"); msg.textContent="Connexion...";
+  const {error}=await sb.auth.signInWithPassword({email,password});
+  if(error) msg.textContent=error.message; else home();
+ };
+}
+async function home(){
+ const {data:{user}}=await sb.auth.getUser();
+ app.innerHTML=`<div class="card"><h2>Tableau de bord</h2>
+ <p class="small">${esc(user?.email||"Utilisateur")}</p>
+ <button onclick="stock()">📦 Stock</button>
+ <button onclick="products()">💧 Produits</button>
+ <button onclick="sales()">💰 Ventes & caisse</button>
+ <button onclick="clients()">👥 Clients</button>
+ <button onclick="employees()">👷 Employés</button>
+ <button onclick="logout()">🚪 Déconnexion</button></div>`;
+}
+function back(){home();}
+async function stock(){
+ app.innerHTML=`<div class="card"><button onclick="back()">← Retour</button><h2>Stock</h2><p>Chargement...</p></div>`;
+ const {data,error}=await sb.from("products").select("id,nom,unite,prix_achat,prix_vente").order("nom");
+ if(error){app.innerHTML=`<div class="card"><button onclick="back()">← Retour</button><h2>Stock</h2><p class="err">Erreur : ${esc(error.message)}</p></div>`;return;}
+ app.innerHTML=`<div class="card"><button onclick="back()">← Retour</button><h2>Stock</h2>
+ ${data.length?data.map(p=>`<div class="card"><b>${esc(p.nom)}</b><br>Unité : ${esc(p.unite||"-")}<br>Prix vente : ${Number(p.prix_vente||0).toLocaleString("fr-FR")} F</div>`).join(""):"<p>Aucun produit enregistré.</p>"}</div>`;
+}
+async function products(){
+ app.innerHTML=`<div class="card"><button onclick="back()">← Retour</button><h2>Produits</h2><p>Chargement...</p></div>`;
+ const {data,error}=await sb.from("products").select("id,nom,unite,prix_achat,prix_vente").order("nom");
+ if(error){app.innerHTML=`<div class="card"><button onclick="back()">← Retour</button><p class="err">Erreur : ${esc(error.message)}</p></div>`;return;}
+ app.innerHTML=`<div class="card"><button onclick="back()">← Retour</button><h2>Produits</h2>
+ ${data.length?data.map(p=>`<div class="card"><b>${esc(p.nom)}</b><br>Prix vente : ${Number(p.prix_vente||0).toLocaleString("fr-FR")} F</div>`).join(""):"Aucun produit."}</div>`;
+}
+function sales(){app.innerHTML=`<div class="card"><button onclick="back()">← Retour</button><h2>Ventes & caisse</h2><p>Choisir un produit</p><p>Total: 0 F</p><p>Reste: 0 F</p></div>`}
+function clients(){app.innerHTML=`<div class="card"><button onclick="back()">← Retour</button><h2>Clients</h2><p>Module clients prêt.</p></div>`}
+function employees(){app.innerHTML=`<div class="card"><button onclick="back()">← Retour</button><h2>Employés</h2><p>Module employés prêt.</p></div>`}
+async function logout(){await sb.auth.signOut();login();}
+sb.auth.onAuthStateChange((event,session)=>{if(event==="SIGNED_OUT")login();});
+start();
+</script>
+</body>
+</html>
