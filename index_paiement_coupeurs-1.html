@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Water Shop</title><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+body{font-family:Arial;margin:0;background:#f4f7fb;color:#172033}header{background:#087ea4;color:white;padding:18px}main{max-width:950px;margin:auto;padding:15px}.card{background:white;border-radius:14px;padding:16px;margin:12px 0;box-shadow:0 2px 10px #0001}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px}button{border:0;border-radius:9px;padding:12px;background:#087ea4;color:white;margin:4px;font-size:15px}button.d{background:#b42318}input,select{width:100%;box-sizing:border-box;padding:12px;margin:6px 0;border:1px solid #ccd5df;border-radius:8px}table{width:100%;border-collapse:collapse}td,th{padding:8px;border-bottom:1px solid #ddd;text-align:left}.small{color:#64748b;font-size:13px}.stat{font-size:26px;font-weight:bold;margin-top:8px}.dashgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}.dashcard{background:white;border-radius:14px;padding:16px;box-shadow:0 2px 10px #0001}.dashlabel{color:#64748b}
+</style></head><body><header><b>Water Shop</b><div>Gestion de votre magasin</div></header><main id="app"></main>
+<script>
+const SUPABASE_URL="https://bzoewgyyjcwnqnjrbwgj.supabase.co",KEY="sb_publishable_yvJLY4g8HuehHHRchbB1lA_kKypIpNo",sb=supabase.createClient(SUPABASE_URL,KEY);
+const K="water_shop_";
+const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const get=k=>JSON.parse(localStorage.getItem(K+k)||"[]"),put=(k,v)=>localStorage.setItem(K+k,JSON.stringify(v));
+function login(){app.innerHTML=`<div class=card><h2>Connexion sécurisée</h2><input id=e type=email placeholder="E-mail"><input id=p type=password placeholder="Mot de passe"><button onclick="go()">Se connecter</button><p id=m class=small></p></div>`}
+async function go(){m.textContent="Connexion...";let r=await sb.auth.signInWithPassword({email:e.value.trim(),password:p.value});if(r.error)m.textContent="Erreur : "+r.error.message}
+async function home(){let{data:{user}}=await sb.auth.getUser();if(!user){login();return}app.innerHTML=`<div class=card><b>Bonjour ${esc(user.email)}</b><br><button onclick="sb.auth.signOut()">Déconnexion</button></div><div class=grid>
+<button onclick="dashboard()">📊 Tableau de bord</button><button onclick="stock()">📦 Stock</button><button onclick="products()">🛒 Produits</button><button onclick="sales()">💰 Ventes & caisse</button><button onclick="clients()">👥 Clients & crédits</button><button onclick="employees()">👨‍💼 Employés</button><button onclick="coupeurs()">👷 Coupeurs</button><button onclick="deliveries()">🚛 Livraisons</button></div>`}
+
+
+function coupeurs(){
+  let d=get("coupeurs"), prod=get("productions_coupeurs");
+  let noms=[...new Set(d.map(x=>x.nom).filter(Boolean))];
+
+  app.innerHTML=`<div class=card><button onclick=home()>← Retour</button><h2>👷 Coupeurs & Production</h2>
+  <h3>👷 Ajouter un coupeur</h3>
+  <input id=cnm placeholder="Nom du coupeur">
+  <input id=ctel placeholder="Téléphone">
+  <button onclick=addCoupeur()>➕ Enregistrer le coupeur</button>
+  </div>
+
+  <div class=card><h3>🏭 Enregistrer une production</h3>
+  <select id=pn>
+    <option value="">Choisir le coupeur</option>
+    ${noms.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join("")}
+  </select>
+  <select id=pm>
+    <option value="">Choisir la machine</option>
+    <option>Machine 1</option>
+    <option>Machine 2</option>
+    <option>Machine 3</option>
+  </select>
+  <input id=pq type=number min=1 value="1" placeholder="Nombre de productions">
+  <input id=pt type=number min="0" value="0" placeholder="Tarif par production">
+  <button onclick=addProductionCoupeur()>✅ Enregistrer la production</button>
+  </div>
+
+  <div class=card><h3>📊 Production par coupeur</h3><div style="overflow:auto"><table>
+  <tr><th>Coupeur</th><th>Machine</th><th>Total productions</th></tr>
+  ${d.map((x,i)=>{
+    let total=prod.filter(z=>z.coupeur===x.nom).reduce((a,z)=>a+(Number(z.qte)||0),0);
+    let last=prod.find(z=>z.coupeur===x.nom);
+    return `<tr><td>${esc(x.nom)}</td><td>${esc(last?.machine||"—")}</td><td><b>${total}</b></td></tr>`;
+  }).join("")}
+  </table></div></div>
+
+  <div class=card><h3>📋 Historique de production</h3><div style="overflow:auto"><table>
+  <tr><th>Date</th><th>Coupeur</th><th>Machine</th><th>Productions</th><th>Tarif</th><th>Total</th></tr>
+  ${prod.map(x=>`<tr><td>${new Date(x.date).toLocaleString("fr-FR")}</td><td>${esc(x.coupeur)}</td><td>${esc(x.machine||"—")}</td><td>${x.qte}</td><td>${Number(x.tarif||0).toLocaleString("fr-FR")}</td><td><b>${(Number(x.qte||0)*Number(x.tarif||0)).toLocaleString("fr-FR")}</b></td></tr>`).join("")}
+  </table></div></div>`;
+}
+
+function addCoupeur(){
+  if(!cnm.value.trim()){alert("Nom du coupeur obligatoire");return}
+  let d=get("coupeurs");
+  d.unshift({nom:cnm.value.trim(),tel:ctel.value.trim()});
+  put("coupeurs",d);
+  coupeurs();
+}
+
+function addProductionCoupeur(){
+  if(!pn.value){alert("Choisis un coupeur");return}
+  if(!pm.value){alert("Choisis une machine");return}
+  let q=Math.max(1,+pq.value||1), tarif=Math.max(0,+pt.value||0),d=get("productions_coupeurs");
+  d.unshift({
+    date:new Date().toISOString(),
+    coupeur:pn.value,
+    machine:pm.value,
+    qte:q,
+    tarif:tarif
+  });
+  put("productions_coupeurs",d.slice(0,500));
+  coupeurs();
+}
+
+async function dashboard(){
+  app.innerHTML=`<div class=card><button onclick=home()>← Retour</button><h2>📊 Tableau de bord</h2><p class=small>Chargement...</p></div>`;
+  let [p,c,e]=await Promise.all([
+    sb.from("products").select("*",{count:"exact",head:true}),
+    sb.from("customers").select("*",{count:"exact",head:true}),
+    sb.from("employees").select("*",{count:"exact",head:true})
+  ]);
+  let salesData=get("sales"), deliveriesData=get("deliveries");
+  let total=salesData.reduce((a,x)=>a+(Number(x.total)||0),0);
+  let paid=salesData.reduce((a,x)=>a+(Number(x.pay)||0),0);
+  let credit=salesData.reduce((a,x)=>a+(Number(x.rest)||0),0);
+  app.innerHTML=`<div class=card><button onclick=home()>← Retour</button><h2>📊 Tableau de bord</h2>
+  <div class=dashgrid>
+  <div class=dashcard><div class=dashlabel>🛒 Produits</div><div class=stat>${p.count??0}</div></div>
+  <div class=dashcard><div class=dashlabel>👥 Clients</div><div class=stat>${c.count??0}</div></div>
+  <div class=dashcard><div class=dashlabel>👨‍💼 Employés</div><div class=stat>${e.count??0}</div></div>
+  <div class=dashcard><div class=dashlabel>🚛 Livraisons</div><div class=stat>${deliveriesData.length}</div></div>
+  <div class=dashcard><div class=dashlabel>💰 Ventes</div><div class=stat>${salesData.length}</div></div>
+  <div class=dashcard><div class=dashlabel>💵 Chiffre d'affaires</div><div class=stat>${total.toLocaleString()} F</div></div>
+  <div class=dashcard><div class=dashlabel>✅ Encaissé</div><div class=stat>${paid.toLocaleString()} F</div></div>
+  <div class=dashcard><div class=dashlabel>📒 À crédit</div><div class=stat>${credit.toLocaleString()} F</div></div>
+  </div></div>`;
+}
+
+
+async function stock(){
+  let r=await sb.from("products").select("id,nom,unite,prix_achat,prix_vente").order("nom");
+  if(r.error){app.innerHTML=`<div class=card><button onclick=home()>← Retour</button><p>Erreur : ${esc(r.error.message)}</p></div>`;return}
+  let d=r.data||[];
+  let st=get("stock");
+  app.innerHTML=`<div class=card><button onclick=home()>← Retour</button><h2>📦 Gestion du stock</h2>
+  <select id=sp><option value="">Choisir un produit</option>${d.map(x=>`<option value="${x.id}">${esc(x.nom)}</option>`).join("")}</select>
+  <input id=se type=number min=1 value=1 placeholder="Quantité">
+  <select id=sm><option value="in">➕ Entrée de stock</option><option value="out">➖ Sortie de stock</option></select>
+  <button onclick="saveStockMove()">✅ Enregistrer le mouvement</button>
+  </div>
+  <div class=card><h3>État du stock</h3><div style="overflow:auto"><table>
+  <tr><th>Produit</th><th>Stock restant</th><th>Unité</th></tr>
+  ${d.map(x=>{let q=st.filter(m=>String(m.product_id)===String(x.id)).reduce((a,m)=>a+(m.type==="in"?m.qte:-m.qte),0);return `<tr><td>${esc(x.nom)}</td><td><b>${q}</b></td><td>${esc(x.unite||"")}</td></tr>`}).join("")}
+  </table></div></div>
+  <div class=card><h3>Historique des mouvements</h3><div style="overflow:auto"><table>
+  <tr><th>Date</th><th>Produit</th><th>Type</th><th>Qté</th></tr>
+  ${st.map(m=>{let x=d.find(z=>String(z.id)===String(m.product_id));return `<tr><td>${new Date(m.date).toLocaleString("fr-FR")}</td><td>${esc(x?.nom||"Produit supprimé")}</td><td>${m.type==="in"?"Entrée":"Sortie"}</td><td>${m.qte}</td></tr>`}).join("")}
+  </table></div></div>`;
+}
+function saveStockMove(){
+  if(!sp.value){alert("Choisis un produit");return}
+  let q=Math.max(1,+se.value||1),st=get("stock");
+  let current=st.filter(m=>String(m.product_id)===String(sp.value)).reduce((a,m)=>a+(m.type==="in"?m.qte:-m.qte),0);
+  if(sm.value==="out" && q>current){alert("Stock insuffisant");return}
+  st.unshift({date:new Date().toISOString(),product_id:sp.value,type:sm.value,qte:q});
+  put("stock",st.slice(0,500));stock();
+}
+
+async function products(){let r=await sb.from("products").select("*").limit(100);if(r.error){app.innerHTML=`<div class=card>Erreur : ${esc(r.error.message)}<br><button onclick=home()>Retour</button></div>`;return}let d=r.data||[];app.innerHTML=`<div class=card><button onclick=home()>← Retour</button><h2>🛒 Produits</h2><button onclick="productForm()">➕ Ajouter</button><div style="overflow:auto"><table><tr><th>Nom</th><th>Catégorie</th><th>Prix vente</th><th>Action</th></tr>${d.map(x=>`<tr><td>${esc(x.nom)}</td><td>${esc(x.categorie)}</td><td>${Number(x.prix_vente||0).toLocaleString()} F</td><td><button class=d onclick="delProduct(${x.id})">Supprimer</button></td></tr>`).join("")}</table></div></div>`}
+function productForm(){app.innerHTML=`<div class=card><button onclick=products()>← Retour</button><h2>Ajouter un produit</h2><input id=n placeholder="Nom"><input id=c placeholder="Catégorie"><input id=u value="pack" placeholder="Unité"><input id=a type=number placeholder="Prix d'achat"><input id=v type=number placeholder="Prix de vente"><button onclick=saveProduct()>Enregistrer</button><p id=m class=small></p></div>`}
+async function saveProduct(){let x={nom:n.value.trim(),categorie:c.value.trim(),unite:u.value.trim()||"pack",prix_achat:+a.value||0,prix_vente:+v.value||0,actif:true};if(!x.nom||!x.categorie){m.textContent="Nom et catégorie obligatoires";return}let r=await sb.from("products").insert(x);if(r.error)m.textContent=r.error.message;else products()}
+async function delProduct(id){if(confirm("Supprimer ?")){await sb.from("products").delete().eq("id",id);products()}}
+async function sales(){let r=await sb.from("products").select("id,nom,prix_vente,unite").eq("actif",true).order("nom");if(r.error){app.innerHTML=`<div class=card>${esc(r.error.message)}<br><button onclick=home()>Retour</button></div>`;return}let o=(r.data||[]).map(x=>`<option value="${x.id}" data-price="${x.prix_vente||0}">${esc(x.nom)} — ${Number(x.prix_vente||0).toLocaleString()} F</option>`).join("");app.innerHTML=`<div class=card><button onclick=home()>← Retour</button><h2>💰 Ventes & caisse</h2><select id=pr onchange=calc()><option value="">Choisir un produit</option>${o}</select><input id=q type=number min=1 value=1 oninput=calc()><input id=pay type=number min=0 value=0 oninput=calc() placeholder="Montant payé"><p>Total : <b id=tot>0 F</b></p><p>Reste : <b id=rest>0 F</b></p><button onclick=saveSale()>✅ Enregistrer</button></div><div class=card><h3>Historique</h3><div style="overflow:auto"><table><tr><th>Date</th><th>Produit</th><th>Qté</th><th>Total</th><th>Payé</th><th>Reste</th></tr>${get("sales").map(x=>`<tr><td>${new Date(x.date).toLocaleString("fr-FR")}</td><td>${esc(x.produit)}</td><td>${x.q}</td><td>${x.total} F</td><td>${x.pay} F</td><td>${x.rest} F</td></tr>`).join("")}</table></div></div>`;calc()}
+function calc(){let o=pr.options[pr.selectedIndex],p=+o?.dataset.price||0,t=p*(+q.value||1);tot.textContent=t.toLocaleString()+" F";rest.textContent=Math.max(0,t-(+pay.value||0)).toLocaleString()+" F"}
+function saveSale(){if(!pr.value){alert("Choisis un produit");return}let o=pr.options[pr.selectedIndex],p=+o.dataset.price,q=Math.max(1,+window.q.value||1),t=p*q,pa=Math.max(0,+pay.value||0),s=get("sales");s.unshift({date:new Date().toISOString(),produit:o.textContent.split(" — ")[0],q,total:t,pay:pa,rest:Math.max(0,t-pa)});put("sales",s.slice(0,300));sales()}
+function clients(){let d=get("clients");app.innerHTML=`<div class=card><button onclick=home()>← Retour</button><h2>👥 Clients & crédits</h2><input id=cn placeholder="Nom du client"><input id=ct placeholder="Téléphone"><input id=cr type=number placeholder="Crédit / dette"><button onclick=addClient()>➕ Enregistrer client</button></div><div class=card><table><tr><th>Client</th><th>Téléphone</th><th>Crédit</th><th></th></tr>${d.map((x,i)=>`<tr><td>${esc(x.n)}</td><td>${esc(x.t)}</td><td>${x.c} F</td><td><button class=d onclick="delItem('clients',${i},clients)">X</button></td></tr>`).join("")}</table></div>`}
+function addClient(){if(!cn.value.trim())return;let d=get("clients");d.unshift({n:cn.value.trim(),t:ct.value.trim(),c:+cr.value||0});put("clients",d);clients()}
+async function employees(){let r=await sb.from("employees").select("*").order("id",{ascending:false}).limit(100);if(r.error){app.innerHTML=`<div class=card><button onclick=home()>← Retour</button><h2>👨‍💼 Employés</h2><p class=small>Erreur : ${esc(r.error.message)}</p></div>`;return}let d=r.data||[];app.innerHTML=`<div class=card><button onclick=home()>← Retour</button><h2>👨‍💼 Employés</h2><input id=en placeholder="Nom"><input id=et placeholder="Téléphone"><input id=ep placeholder="Poste"><button onclick=addEmployee()>➕ Enregistrer</button></div><div class=card><table><tr><th>Nom</th><th>Téléphone</th><th>Poste</th><th></th></tr>${d.map(x=>`<tr><td>${esc(x.nom)}</td><td>${esc(x.telephone)}</td><td>${esc(x.poste)}</td><td><button class=d onclick="deleteEmployee(${x.id})">X</button></td></tr>`).join("")}</table></div>`}
+async function addEmployee(){let nom=en.value.trim(),telephone=et.value.trim(),poste=ep.value.trim();if(!nom){alert("Nom obligatoire");return}let r=await sb.from("employees").insert({nom,telephone,poste});if(r.error)alert("Erreur : "+r.error.message);else employees()}
+async function deleteEmployee(id){if(confirm("Supprimer ?")){let r=await sb.from("employees").delete().eq("id",id);if(r.error)alert("Erreur : "+r.error.message);else employees()}}
+function deliveries(){let d=get("deliveries");app.innerHTML=`<div class=card><button onclick=home()>← Retour</button><h2>🚛 Livraisons</h2><input id=dc placeholder="Client"><input id=dp placeholder="Produit"><input id=dq type=number min=1 value=1 placeholder="Quantité"><input id=da placeholder="Adresse"><button onclick=addDelivery()>➕ Enregistrer la livraison</button></div><div class=card><h3>Historique</h3><div style="overflow:auto"><table><tr><th>Date</th><th>Client</th><th>Produit</th><th>Qté</th><th>Adresse</th><th></th></tr>${d.map((x,i)=>`<tr><td>${new Date(x.date).toLocaleString("fr-FR")}</td><td>${esc(x.client)}</td><td>${esc(x.produit)}</td><td>${x.qte}</td><td>${esc(x.adresse)}</td><td><button class=d onclick="delDelivery(${i})">X</button></td></tr>`).join("")}</table></div></div>`}
+function addDelivery(){let client=dc.value.trim(),produit=dp.value.trim(),qte=Math.max(1,+dq.value||1),adresse=da.value.trim();if(!client||!produit){alert("Client et produit obligatoires");return}let d=get("deliveries");d.unshift({date:new Date().toISOString(),client,produit,qte,adresse});put("deliveries",d.slice(0,300));deliveries()}
+function delDelivery(i){let d=get("deliveries");d.splice(i,1);put("deliveries",d);deliveries()}
+function simple(k,t,fields){let d=get(k);app.innerHTML=`<div class=card><button onclick=home()>← Retour</button><h2>${t}</h2>${fields.map((x,i)=>`<input id="f${i}" placeholder="${x}">`).join("")}<button onclick="addSimple('${k}',${JSON.stringify(fields)},${fields.length})">➕ Enregistrer</button></div><div class=card><table><tr>${fields.map(x=>`<th>${x}</th>`).join("")}<th></th></tr>${d.map((x,i)=>`<tr>${fields.map((_,j)=>`<td>${esc(x[j]||"")}</td>`).join("")}<td><button class=d onclick="delItem('${k}',${i},()=>simple('${k}',${JSON.stringify(t)},${JSON.stringify(fields)}))">X</button></td></tr>`).join("")}</table></div>`}
+function addSimple(k,fields,n){let a=[];for(let i=0;i<n;i++)a.push(document.getElementById("f"+i).value.trim());if(!a[0])return;let d=get(k);d.unshift(a);put(k,d);simple(k,{machines:"🚚 Machines & coupeurs",deliveries:"🚛 Livraisons"}[k],fields)}
+function delItem(k,i,fn){let d=get(k);d.splice(i,1);put(k,d);fn()}
+sb.auth.onAuthStateChange(()=>setTimeout(home,0));home();
+</script></body></html>
